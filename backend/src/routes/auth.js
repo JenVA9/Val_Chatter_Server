@@ -21,6 +21,7 @@ router.post('/register', async (req, res) => {
     );
     res.json({ token, userId: result.insertId, username });
   } catch (err) {
+    console.error('[register]', err.message ?? err);
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Username taken' });
     res.status(500).json({ error: 'Server error' });
   }
@@ -41,7 +42,8 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
     res.json({ token, userId: user.id, username: user.username });
-  } catch {
+  } catch (err) {
+    console.error('[login]', err.message ?? err);
     res.status(500).json({ error: 'Server error' });
   }
 });

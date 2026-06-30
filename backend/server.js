@@ -4,6 +4,14 @@ const jwt = require('jsonwebtoken');
 const app = require('./src/app');
 require('dotenv').config();
 
+const REQUIRED_ENV = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME', 'JWT_SECRET'];
+for (const key of REQUIRED_ENV) {
+  if (!process.env[key]) {
+    console.error(`[startup] Missing required env var: ${key}`);
+    process.exit(1);
+  }
+}
+
 const server = http.createServer(app);
 
 const wss = new WebSocketServer({ server, path: '/ws' });
