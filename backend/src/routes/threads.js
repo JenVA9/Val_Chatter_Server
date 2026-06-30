@@ -43,4 +43,16 @@ router.post('/resolve', auth, async (req, res) => {
   }
 });
 
+// PATCH /api/threads/:id/mode  { mode: 'chat' | 'whiteboard' }
+router.patch('/:id/mode', auth, async (req, res) => {
+  const { mode } = req.body;
+  if (!['chat', 'whiteboard'].includes(mode)) return res.status(400).json({ error: 'mode must be chat or whiteboard' });
+  try {
+    await pool.execute('UPDATE threads SET mode = ? WHERE id = ?', [mode, req.params.id]);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

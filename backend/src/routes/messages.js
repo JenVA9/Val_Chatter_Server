@@ -56,9 +56,8 @@ router.post('/', auth, async (req, res) => {
 
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT * FROM messages WHERE id = ?', [req.params.id]);
+    const [rows] = await pool.execute('SELECT id FROM messages WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    if (rows[0].user_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
     await pool.execute('DELETE FROM messages WHERE id = ?', [req.params.id]);
     res.json({ ok: true });
   } catch {
