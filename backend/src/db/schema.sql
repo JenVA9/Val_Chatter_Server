@@ -1,7 +1,6 @@
 CREATE DATABASE IF NOT EXISTS val_tactics;
 USE val_tactics;
 
--- ── Users ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
     id            INT AUTO_INCREMENT PRIMARY KEY,
     username      VARCHAR(50) UNIQUE NOT NULL,
@@ -12,19 +11,16 @@ CREATE TABLE IF NOT EXISTS users (
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ── Nodes ──────────────────────────────────────────────────────────────────
--- parent_key virtual column lets us enforce uniqueness even when parent_id is NULL
 CREATE TABLE IF NOT EXISTS nodes (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     type       ENUM('map','agent','site','tactic_type','agent_combo') NOT NULL,
     name       VARCHAR(100) NOT NULL,
     parent_id  INT NULL,
-    parent_key INT AS (COALESCE(parent_id, 0)) VIRTUAL,
+    parent_key INT NOT NULL DEFAULT 0,
     UNIQUE KEY uq_node (type, name, parent_key),
-    FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE SET NULL
+    FOREIGN KEY (parent_id) REFERENCES nodes(id) ON DELETE CASCADE
 );
 
--- ── Threads ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS threads (
     id            INT AUTO_INCREMENT PRIMARY KEY,
     canonical_key VARCHAR(255) UNIQUE NOT NULL,
@@ -32,7 +28,6 @@ CREATE TABLE IF NOT EXISTS threads (
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ── Thread ↔ Nodes ─────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS thread_nodes (
     thread_id INT NOT NULL,
     node_id   INT NOT NULL,
@@ -41,7 +36,6 @@ CREATE TABLE IF NOT EXISTS thread_nodes (
     FOREIGN KEY (node_id)   REFERENCES nodes(id)   ON DELETE CASCADE
 );
 
--- ── Messages ───────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS messages (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     thread_id      INT NOT NULL,
@@ -55,20 +49,17 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (user_id)   REFERENCES users(id)   ON DELETE CASCADE
 );
 
--- ── Server config key-value store ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS server_config (
     `key`   VARCHAR(100) PRIMARY KEY,
     `value` VARCHAR(1000) NOT NULL DEFAULT ''
 );
 
--- ── IP bans ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ip_bans (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     ip         VARCHAR(50) UNIQUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ── Whiteboards (one per thread) ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS whiteboards (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     thread_id  INT NOT NULL UNIQUE,
@@ -77,14 +68,14 @@ CREATE TABLE IF NOT EXISTS whiteboards (
     FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
 );
 
--- ── Migrate existing tables (safe to run on fresh or existing DBs) ─────────
 ALTER TABLE users    ADD COLUMN is_admin      BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users    ADD COLUMN is_banned     BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users    ADD COLUMN is_guest      BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE messages ADD COLUMN pin_expires_at DATETIME NULL;
 ALTER TABLE threads  ADD COLUMN mode          VARCHAR(20) NOT NULL DEFAULT 'chat';
+ALTER TABLE nodes    ADD COLUMN parent_key    INT NOT NULL DEFAULT 0;
+ALTER TABLE nodes    ADD UNIQUE KEY uq_node (type, name, parent_key);
 
--- ── Default config values ──────────────────────────────────────────────────
 INSERT IGNORE INTO server_config VALUES
     ('restricted_registration', 'false'),
     ('guest_enabled',            'true'),
@@ -92,60 +83,56 @@ INSERT IGNORE INTO server_config VALUES
     ('max_file_size_mb',         '50'),
     ('max_image_res',            '4096');
 
--- ── Seed Valorant maps ─────────────────────────────────────────────────────
-INSERT IGNORE INTO nodes (type, name) VALUES
-('map', 'Ascent'),
-('map', 'Bind'),
-('map', 'Haven'),
-('map', 'Split'),
-('map', 'Icebox'),
-('map', 'Breeze'),
-('map', 'Fracture'),
-('map', 'Pearl'),
-('map', 'Lotus'),
-('map', 'Sunset');
+INSERT IGNORE INTO nodes (type, name, parent_key) VALUES
+('map', 'Ascent', 0),
+('map', 'Bind', 0),
+('map', 'Haven', 0),
+('map', 'Split', 0),
+('map', 'Icebox', 0),
+('map', 'Breeze', 0),
+('map', 'Fracture', 0),
+('map', 'Pearl', 0),
+('map', 'Lotus', 0),
+('map', 'Sunset', 0);
 
--- ── Seed agents ────────────────────────────────────────────────────────────
-INSERT IGNORE INTO nodes (type, name) VALUES
-('agent', 'Jett'),
-('agent', 'Reyna'),
-('agent', 'Phoenix'),
-('agent', 'Yoru'),
-('agent', 'Neon'),
-('agent', 'Sage'),
-('agent', 'Omen'),
-('agent', 'Brimstone'),
-('agent', 'Viper'),
-('agent', 'Astra'),
-('agent', 'Harbor'),
-('agent', 'Cypher'),
-('agent', 'Sova'),
-('agent', 'Killjoy'),
-('agent', 'Fade'),
-('agent', 'Chamber'),
-('agent', 'Breach'),
-('agent', 'Skye'),
-('agent', 'KAY/O'),
-('agent', 'Gekko'),
-('agent', 'Deadlock'),
-('agent', 'Iso'),
-('agent', 'Clove'),
-('agent', 'Vyse'),
-('agent', 'Tejo');
+INSERT IGNORE INTO nodes (type, name, parent_key) VALUES
+('agent', 'Jett', 0),
+('agent', 'Reyna', 0),
+('agent', 'Phoenix', 0),
+('agent', 'Yoru', 0),
+('agent', 'Neon', 0),
+('agent', 'Sage', 0),
+('agent', 'Omen', 0),
+('agent', 'Brimstone', 0),
+('agent', 'Viper', 0),
+('agent', 'Astra', 0),
+('agent', 'Harbor', 0),
+('agent', 'Cypher', 0),
+('agent', 'Sova', 0),
+('agent', 'Killjoy', 0),
+('agent', 'Fade', 0),
+('agent', 'Chamber', 0),
+('agent', 'Breach', 0),
+('agent', 'Skye', 0),
+('agent', 'KAY/O', 0),
+('agent', 'Gekko', 0),
+('agent', 'Deadlock', 0),
+('agent', 'Iso', 0),
+('agent', 'Clove', 0),
+('agent', 'Vyse', 0),
+('agent', 'Tejo', 0);
 
--- ── Seed tactic types ──────────────────────────────────────────────────────
-INSERT IGNORE INTO nodes (type, name) VALUES
-('tactic_type', 'Default'),
-('tactic_type', 'Rush'),
-('tactic_type', 'Eco'),
-('tactic_type', 'Anti-Eco'),
-('tactic_type', 'Retake'),
-('tactic_type', 'Post-Plant'),
-('tactic_type', 'Split Push');
+INSERT IGNORE INTO nodes (type, name, parent_key) VALUES
+('tactic_type', 'Default', 0),
+('tactic_type', 'Rush', 0),
+('tactic_type', 'Eco', 0),
+('tactic_type', 'Anti-Eco', 0),
+('tactic_type', 'Retake', 0),
+('tactic_type', 'Post-Plant', 0),
+('tactic_type', 'Split Push', 0);
 
--- ── Seed sites (uses JOIN so parent IDs are always correct) ────────────────
-INSERT IGNORE INTO nodes (type, name, parent_id)
-SELECT 'site', s.site_name, m.id
+INSERT IGNORE INTO nodes (type, name, parent_id, parent_key)
+SELECT 'site', s.site_name, m.id, m.id
 FROM (
     SELECT 'Ascent' AS map_name, 'A Site' AS site_name UNION ALL
     SELECT 'Ascent', 'B Site'                          UNION ALL

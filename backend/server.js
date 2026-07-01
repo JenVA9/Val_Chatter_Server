@@ -146,9 +146,10 @@ async function initSchema() {
         try {
           await conn.query(stmt);
         } catch (err) {
-          // 1060 = Duplicate column name (ALTER TABLE on column that already exists — MySQL 5.7)
-          // 1061 = Duplicate key name
-          if (err.errno !== 1060 && err.errno !== 1061) {
+          // 1060 = Duplicate column name, 1061 = Duplicate key name,
+          // 1062 = Duplicate entry (UNIQUE KEY on table with pre-existing dupes — dedup runs first),
+          // 1348 = Column not updatable (generated column from old schema on UPDATE parent_key)
+          if (![1060, 1061, 1062, 1348].includes(err.errno)) {
             console.warn('[startup] Schema stmt warning:', err.message);
           }
         }
@@ -160,6 +161,37 @@ async function initSchema() {
   } catch (err) {
     console.error('[startup] Schema init failed:', err.message);
   }
+}
+
+async function initDedup() {
+  try {
+    const conn = await pool.getConnection();
+    try {
+      // Re-route site parent_ids to canonical (lowest-id) map
+      await conn.query(`
+        UPDATE nodes site_dup
+          JOIN nodes map_dup   ON map_dup.id = site_dup.parent_id AND map_dup.type = 'map'
+          JOIN nodes map_canon ON map_canon.type = 'map'
+            AND map_canon.name = map_dup.name AND map_canon.id < map_dup.id
+        SET site_dup.parent_id = map_canon.id, site_dup.parent_key = map_canon.id
+        WHERE site_dup.type = 'site'
+      `).catch(() => {});
+      // Delete true duplicates (keep lowest id per type+name+parent_key group)
+      await conn.query(`
+        DELETE n1 FROM nodes n1
+          JOIN nodes n2
+            ON n1.type = n2.type AND n1.name = n2.name
+            AND n1.parent_key = n2.parent_key
+            AND n1.id > n2.id
+      `).catch(() => {});
+      // Ensure parent_key is consistent with parent_id (fix any rows missing parent_key)
+      await conn.query(`
+        UPDATE nodes SET parent_key = COALESCE(parent_id, 0) WHERE parent_key != COALESCE(parent_id, 0)
+      `).catch(() => {});
+    } finally {
+      conn.release();
+    }
+  } catch {}
 }
 
 async function initGuestUser() {
@@ -180,6 +212,7 @@ async function initGuestUser() {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, async () => {
   console.log(`Val Tactics server running on port ${PORT}`);
+  await initDedup();
   await initSchema();
   await initGuestUser();
   const [admins] = await pool.execute('SELECT id FROM users WHERE is_admin = TRUE LIMIT 1').catch(() => [[]]);
